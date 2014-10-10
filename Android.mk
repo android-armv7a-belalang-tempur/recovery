@@ -14,13 +14,17 @@
 
 LOCAL_PATH := $(call my-dir)
 
-ifeq ($(RECOVERY_VARIANT),)
-ifeq ($(LOCAL_PATH),bootable/recovery)
-RECOVERY_VARIANT := twrp
-endif
+ifdef project-path-for
+    ifeq ($(LOCAL_PATH),$(call project-path-for,recovery))
+        PROJECT_PATH_AGREES := true
+    endif
+else
+    ifeq ($(LOCAL_PATH),bootable/recovery)
+        PROJECT_PATH_AGREES := true
+    endif
 endif
 
-ifeq ($(RECOVERY_VARIANT),twrp)
+ifeq ($(PROJECT_PATH_AGREES),true)
 
 include $(CLEAR_VARS)
 
@@ -416,10 +420,12 @@ ifeq ($(BUILD_ID), GINGERBREAD)
     TW_NO_EXFAT := true
 endif
 ifneq ($(TW_NO_EXFAT), true)
-    include $(commands_recovery_local_path)/exfat/exfat-fuse/Android.mk \
-            $(commands_recovery_local_path)/exfat/mkfs/Android.mk \
+    include $(commands_recovery_local_path)/exfat/mkfs/Android.mk \
             $(commands_recovery_local_path)/fuse/Android.mk \
             $(commands_recovery_local_path)/exfat/libexfat/Android.mk
+endif
+ifneq ($(TW_NO_EXFAT_FUSE), true)
+    include $(commands_recovery_local_path)/exfat/exfat-fuse/Android.mk
 endif
 ifeq ($(TW_INCLUDE_CRYPTO), true)
     include $(commands_recovery_local_path)/crypto/ics/Android.mk
