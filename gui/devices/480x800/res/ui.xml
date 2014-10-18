@@ -4,8 +4,8 @@
 	<details>
 		<resolution width="480" height="800" />
 		<author>TeamWin</author>
-		<title>Backup Naowz</title>
-		<description>Default basic theme</description>
+		<title>F2FS Backup</title>
+		<description>Red Theme</description>
 		<preview>preview.jpg</preview>
 	</details>
 
@@ -14,9 +14,9 @@
 	</include>
 
 	<resources>
-		<resource name="font" type="font" filename="RobotoCondensed-Regular.ttf" size="20" fallback="Roboto-Regular-20" />
-		<resource name="mediumfont" type="font" filename="RobotoCondensed-Regular.ttf" size="20" fallback="Roboto-Regular-20" />
-		<resource name="filelist" type="font" filename="RobotoCondensed-Regular.ttf" size="20" fallback="Roboto-Regular-20" />
+		<resource name="font" type="font" filename="Roboto-Regular-20" />
+		<resource name="mediumfont" type="font" filename="Roboto-Regular-20" />
+		<resource name="filelist" type="font" filename="Roboto-Regular-20" />
 		<resource name="top_bar" type="image" filename="top-bar.jpg" />
 		<resource name="main_button" type="image" filename="menu-button" />
 		<resource name="file_icon" type="image" filename="file" />
@@ -98,10 +98,10 @@
 		<variable name="slider_text_y" value="721" />
 		<variable name="button_text_color" value="#AAAAAA" />
 		<variable name="text_color" value="#FFFFFF" />
-		<variable name="text_success_color" value="#33B5E5" />
+		<variable name="text_success_color" value="#F80202" />
 		<variable name="text_fail_color" value="#FF0101" />
 		<variable name="highlight_color" value="#90909080" />
-		<variable name="caps_highlight_color" value="#33B5E580" />
+		<variable name="caps_highlight_color" value="#F8020280" />
 		<variable name="home_button_x" value="10" />
 		<variable name="home_button_y" value="766" />
 		<variable name="back_button_x" value="413" />
@@ -116,14 +116,14 @@
 		<variable name="input_width" value="460" />
 		<variable name="input_height" value="40" />
 		<variable name="input_background_color" value="#303030" />
-		<variable name="input_cursor_color" value="#33B5E5" />
+		<variable name="input_cursor_color" value="#F80202" />
 		<variable name="input_cursor_width" value="3" />
 		<variable name="console_x" value="0" />
 		<variable name="console_width" value="480" />
 		<variable name="console_foreground" value="#A0A0A0" />
 		<variable name="warning" value="#F8F8A0" />
 		<variable name="error" value="#FF4040" />
-		<variable name="highlight" value="#33B5E5" />
+		<variable name="highlight" value="#F80202" />
 		<variable name="console_background" value="#303030" />
 		<variable name="console_scroll" value="#303030" />
 		<variable name="console_action_height" value="320" />
@@ -134,13 +134,13 @@
 		<variable name="fileselector_install_height" value="480" />
 		<variable name="fileselector_header_background" value="#202020" />
 		<variable name="fileselector_header_textcolor" value="#AAAAAA" />
-		<variable name="fileselector_header_separatorcolor" value="#33B5E5" />
+		<variable name="fileselector_header_separatorcolor" value="#F80202" />
 		<variable name="fileselector_header_separatorheight" value="3" />
 		<variable name="fileselector_separatorcolor" value="#505050" />
 		<variable name="fileselector_separatorheight" value="2" />
 		<variable name="fileselector_background" value="#303030" />
 		<variable name="fileselector_highlight_color" value="#505050" />
-		<variable name="fileselector_highlight_font_color" value="#33B5E5" />
+		<variable name="fileselector_highlight_font_color" value="#F80202" />
 		<variable name="fileselector_spacing" value="18" />
 		<variable name="fastscroll_linecolor" value="#808080" />
 		<variable name="fastscroll_rectcolor" value="#808080" />
@@ -189,7 +189,7 @@
 		<variable name="wipe_button_y" value="400" />
 		<variable name="slidervalue_w" value="460" />
 		<variable name="slidervalue_line_clr" value="#FFFFFF" />
-		<variable name="slidervalue_slider_clr" value="#33B5E5" />
+		<variable name="slidervalue_slider_clr" value="#F80202" />
 		<variable name="slidervalue_lineh" value="1" />
 		<variable name="slidervalue_padding" value="13" />
 		<variable name="slidervalue_sliderw" value="7" />
@@ -232,22 +232,13 @@
 
 			<object type="text" color="%text_color%">
 				<font resource="font" />
-				<placement x="190" y="70" />
+				<placement x="250" y="70" />
 				<conditions>
 					<condition var1="tw_no_battery_percent" var2="0" />
 					<condition var1="tw_battery" op=">" var2="0" />
 					<condition var1="tw_battery" op="<" var2="101" />
 				</conditions>
 				<text>Battery: %tw_battery%</text>
-			</object>
-
-			<object type="text" color="%text_color%">
-				<font resource="font" />
-				<placement x="350" y="70" />
-				<conditions>
-					<condition var1="tw_no_cpu_temp" var2="0" />
-				</conditions>
-				<text>CPU: %tw_cpu_temp% C</text>
 			</object>
 
 			<object type="button">
