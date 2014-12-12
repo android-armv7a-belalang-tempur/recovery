@@ -38,6 +38,7 @@
 #include "fixPermissions.hpp"
 #include "twrpDigest.hpp"
 #include "twrpDU.hpp"
+#include "set_metadata.h"
 
 #ifdef TW_HAS_MTP
 #include "mtp/mtp_MtpServer.hpp"
@@ -49,13 +50,7 @@ extern "C" {
 }
 
 #ifdef TW_INCLUDE_CRYPTO
-	#ifdef TW_INCLUDE_JB_CRYPTO
-		#include "crypto/jb/cryptfs.h"
-	#elif defined(TW_INCLUDE_L_CRYPTO)
-		#include "crypto/lollipop/cryptfs.h"
-	#else
-		#include "crypto/ics/cryptfs.h"
-	#endif
+	#include "crypto/lollipop/cryptfs.h"
 #endif
 
 extern bool datamedia;
@@ -139,7 +134,7 @@ int TWPartitionManager::Process_Fstab(string Fstab_Filename, bool Display_Error)
 	if (settings_partition) {
 		Setup_Settings_Storage_Partition(settings_partition);
 	}
-#ifdef TW_INCLUDE_L_CRYPTO
+#ifdef TW_INCLUDE_CRYPTO
 	TWPartition* Decrypt_Data = Find_Partition_By_Path("/data");
 	if (Decrypt_Data && Decrypt_Data->Is_Encrypted && !Decrypt_Data->Is_Decrypted) {
 		int password_type = cryptfs_get_password_type();
@@ -261,6 +256,8 @@ void TWPartitionManager::Output_Partition(TWPartition* Part) {
 		printf("Ignore_Blkid ");
 	if (Part->Retain_Layout_Version)
 		printf("Retain_Layout_Version ");
+	if (Part->Mount_To_Decrypt)
+		printf("Mount_To_Decrypt ");
 	printf("\n");
 	if (!Part->SubPartition_Of.empty())
 		printf("   SubPartition_Of: %s\n", Part->SubPartition_Of.c_str());
@@ -274,6 +271,8 @@ void TWPartitionManager::Output_Partition(TWPartition* Part) {
 		printf("   Alternate_Block_Device: %s\n", Part->Alternate_Block_Device.c_str());
 	if (!Part->Decrypted_Block_Device.empty())
 		printf("   Decrypted_Block_Device: %s\n", Part->Decrypted_Block_Device.c_str());
+	if (!Part->Crypto_Key_Location.empty() && Part->Crypto_Key_Location != "footer")
+		printf("   Crypto_Key_Location: %s\n", Part->Crypto_Key_Location.c_str());
 	if (Part->Length != 0)
 		printf("   Length: %i\n", Part->Length);
 	if (!Part->Display_Name.empty())
@@ -759,6 +758,7 @@ int TWPartitionManager::Run_Backup(void) {
 	gui_print_color("highlight", "[BACKUP COMPLETED IN %d SECONDS]\n\n", total_time); // the end
 	string backup_log = Full_Backup_Path + "recovery.log";
 	TWFunc::copy_file("/tmp/recovery.log", backup_log, 0644);
+	tw_set_default_metadata(backup_log.c_str());
 	return true;
 }
 
@@ -1352,60 +1352,31 @@ int TWPartitionManager::Decrypt_Device(string Password) {
 	int ret_val, password_len;
 	char crypto_blkdev[255], cPassword[255];
 	size_t result;
+	std::vector<TWPartition*>::iterator iter;
 
 	property_set("ro.crypto.state", "encrypted");
-#if defined(TW_INCLUDE_JB_CRYPTO) || defined(TW_INCLUDE_L_CRYPTO)
-	// No extra flags needed
-#else
-	property_set("ro.crypto.fs_type", CRYPTO_FS_TYPE);
-	property_set("ro.crypto.fs_real_blkdev", CRYPTO_REAL_BLKDEV);
-	property_set("ro.crypto.fs_mnt_point", CRYPTO_MNT_POINT);
-	property_set("ro.crypto.fs_options", CRYPTO_FS_OPTIONS);
-	property_set("ro.crypto.fs_flags", CRYPTO_FS_FLAGS);
-	property_set("ro.crypto.keyfile.userdata", CRYPTO_KEY_LOC);
 
-#ifdef CRYPTO_SD_FS_TYPE
-	property_set("ro.crypto.sd_fs_type", CRYPTO_SD_FS_TYPE);
-	property_set("ro.crypto.sd_fs_real_blkdev", CRYPTO_SD_REAL_BLKDEV);
-	property_set("ro.crypto.sd_fs_mnt_point", EXPAND(TW_INTERNAL_STORAGE_PATH));
-#endif
-
-	property_set("rw.km_fips_status", "ready");
-
-#endif
-
-	// some samsung devices store "footer" on efs partition
-	TWPartition *efs = Find_Partition_By_Path("/efs");
-	if(efs && !efs->Is_Mounted())
-		efs->Mount(false);
-	else
-		efs = 0;
-#ifdef TW_EXTERNAL_STORAGE_PATH
-#ifdef TW_INCLUDE_CRYPTO_SAMSUNG
-	TWPartition* sdcard = Find_Partition_By_Path(EXPAND(TW_EXTERNAL_STORAGE_PATH));
-	if (sdcard && sdcard->Mount(false)) {
-		property_set("ro.crypto.external_encrypted", "1");
-		property_set("ro.crypto.external_blkdev", sdcard->Actual_Block_Device.c_str());
-	} else {
-		property_set("ro.crypto.external_encrypted", "0");
+	// Mount any partitions that need to be mounted for decrypt
+	for (iter = Partitions.begin(); iter != Partitions.end(); iter++) {
+		if ((*iter)->Mount_To_Decrypt) {
+			(*iter)->Mount(true);
+		}
 	}
-#endif
-#endif
 
 	strcpy(cPassword, Password.c_str());
-#ifdef TW_INCLUDE_L_CRYPTO
-	Mount_By_Path("/vendor", false); // if exists, mount vendor partition as we may need some proprietary files
-	Mount_By_Path("/firmware", false); // if exists, mount firmware partition as we may need some proprietary files
-#endif
 	int pwret = cryptfs_check_passwd(cPassword);
+
+	// Unmount any partitions that were needed for decrypt
+	for (iter = Partitions.begin(); iter != Partitions.end(); iter++) {
+		if ((*iter)->Mount_To_Decrypt) {
+			(*iter)->UnMount(false);
+		}
+	}
 
 	if (pwret != 0) {
 		LOGERR("Failed to decrypt data.\n");
 		return -1;
 	}
-
-	if(efs)
-		efs->UnMount(false);
 
 	property_get("ro.crypto.fs_crypto_blkdev", crypto_blkdev, "error");
 	if (strcmp(crypto_blkdev, "error") == 0) {
@@ -1420,41 +1391,6 @@ int TWPartitionManager::Decrypt_Device(string Password) {
 			dat->Setup_File_System(false);
 			dat->Current_File_System = dat->Fstab_File_System; // Needed if we're ignoring blkid because encrypted devices start out as emmc
 			gui_print("Data successfully decrypted, new block device: '%s'\n", crypto_blkdev);
-
-#ifdef CRYPTO_SD_FS_TYPE
-			char crypto_blkdev_sd[255];
-			property_get("ro.crypto.sd_fs_crypto_blkdev", crypto_blkdev_sd, "error");
-			if (strcmp(crypto_blkdev_sd, "error") == 0) {
-				LOGERR("Error retrieving decrypted data block device.\n");
-			} else if(TWPartition* emmc = Find_Partition_By_Path(EXPAND(TW_INTERNAL_STORAGE_PATH))){
-				emmc->Is_Decrypted = true;
-				emmc->Decrypted_Block_Device = crypto_blkdev_sd;
-				emmc->Setup_File_System(false);
-				gui_print("Internal SD successfully decrypted, new block device: '%s'\n", crypto_blkdev_sd);
-			}
-#endif //ifdef CRYPTO_SD_FS_TYPE
-#ifdef TW_EXTERNAL_STORAGE_PATH
-#ifdef TW_INCLUDE_CRYPTO_SAMSUNG
-			char is_external_decrypted[255];
-			property_get("ro.crypto.external_use_ecryptfs", is_external_decrypted, "0");
-			if (strcmp(is_external_decrypted, "1") == 0) {
-				sdcard->Is_Decrypted = true;
-				sdcard->EcryptFS_Password = Password;
-				sdcard->Decrypted_Block_Device = sdcard->Actual_Block_Device;
-				string MetaEcfsFile = EXPAND(TW_EXTERNAL_STORAGE_PATH);
-				MetaEcfsFile += "/.MetaEcfsFile";
-				if (!TWFunc::Path_Exists(MetaEcfsFile)) {
-					// External storage isn't actually encrypted so unmount and remount without ecryptfs
-					sdcard->UnMount(false);
-					sdcard->Mount(false);
-				}
-			} else {
-				LOGINFO("External storage '%s' is not encrypted.\n", sdcard->Mount_Point.c_str());
-				sdcard->Is_Decrypted = false;
-				sdcard->Decrypted_Block_Device = "";
-			}
-#endif
-#endif //ifdef TW_EXTERNAL_STORAGE_PATH
 
 			// Sleep for a bit so that the device will be ready
 			sleep(1);
@@ -1968,6 +1904,7 @@ bool TWPartitionManager::Enable_MTP(void) {
 	TWFunc::write_file("/sys/class/android_usb/android0/idVendor", vendorstr);
 	TWFunc::write_file("/sys/class/android_usb/android0/idProduct", productstr);
 	property_set("sys.usb.config", "mtp,adb");
+	usleep(2000); // Short sleep to prevent an occasional kernel panic on some devices
 	std::vector<TWPartition*>::iterator iter;
 	/* To enable MTP debug, use the twrp command line feature to
 	 * twrp set tw_mtp_debug 1
@@ -1978,7 +1915,7 @@ bool TWPartitionManager::Enable_MTP(void) {
 		if ((*iter)->Is_Storage && (*iter)->Is_Present && (*iter)->Mount(false)) {
 			++storageid;
 			printf("twrp addStorage %s, mtpstorageid: %u\n", (*iter)->Storage_Path.c_str(), storageid);
-			mtp->addStorage((*iter)->Storage_Name, (*iter)->Storage_Path, storageid);
+			mtp->addStorage((*iter)->Storage_Name, (*iter)->Storage_Path, storageid, (*iter)->Get_Max_FileSize());
 			count++;
 		}
 	}
@@ -2011,6 +1948,7 @@ bool TWPartitionManager::Disable_MTP(void) {
 	string productstr = product;
 	TWFunc::write_file("/sys/class/android_usb/android0/idVendor", vendorstr);
 	TWFunc::write_file("/sys/class/android_usb/android0/idProduct", productstr);
+	usleep(2000);
 	if (mtppid) {
 		LOGINFO("Disabling MTP\n");
 		int status;
