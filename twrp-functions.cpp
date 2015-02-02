@@ -354,30 +354,30 @@ void TWFunc::install_htc_dumlock(void) {
 		return;
 
 	gui_print("Installing HTC Dumlock to system...\n");
-	copy_file("/res/htcd/htcdumlocksys", "/system/bin/htcdumlock", 0755);
+	copy_file(TWHTCD_PATH "htcdumlocksys", "/system/bin/htcdumlock", 0755);
 	if (!Path_Exists("/system/bin/flash_image")) {
 		gui_print("Installing flash_image...\n");
-		copy_file("/res/htcd/flash_imagesys", "/system/bin/flash_image", 0755);
+		copy_file(TWHTCD_PATH "flash_imagesys", "/system/bin/flash_image", 0755);
 		need_libs = 1;
 	} else
 		gui_print("flash_image is already installed, skipping...\n");
 	if (!Path_Exists("/system/bin/dump_image")) {
 		gui_print("Installing dump_image...\n");
-		copy_file("/res/htcd/dump_imagesys", "/system/bin/dump_image", 0755);
+		copy_file(TWHTCD_PATH "dump_imagesys", "/system/bin/dump_image", 0755);
 		need_libs = 1;
 	} else
 		gui_print("dump_image is already installed, skipping...\n");
 	if (need_libs) {
 		gui_print("Installing libs needed for flash_image and dump_image...\n");
-		copy_file("/res/htcd/libbmlutils.so", "/system/lib/libbmlutils.so", 0755);
-		copy_file("/res/htcd/libflashutils.so", "/system/lib/libflashutils.so", 0755);
-		copy_file("/res/htcd/libmmcutils.so", "/system/lib/libmmcutils.so", 0755);
-		copy_file("/res/htcd/libmtdutils.so", "/system/lib/libmtdutils.so", 0755);
+		copy_file(TWHTCD_PATH "libbmlutils.so", "/system/lib/libbmlutils.so", 0644);
+		copy_file(TWHTCD_PATH "libflashutils.so", "/system/lib/libflashutils.so", 0644);
+		copy_file(TWHTCD_PATH "libmmcutils.so", "/system/lib/libmmcutils.so", 0644);
+		copy_file(TWHTCD_PATH "libmtdutils.so", "/system/lib/libmtdutils.so", 0644);
 	}
 	gui_print("Installing HTC Dumlock app...\n");
 	mkdir("/data/app", 0777);
 	unlink("/data/app/com.teamwin.htcdumlock*");
-	copy_file("/res/htcd/HTCDumlock.apk", "/data/app/com.teamwin.htcdumlock.apk", 0777);
+	copy_file(TWHTCD_PATH "HTCDumlock.apk", "/data/app/com.teamwin.htcdumlock.apk", 0777);
 	sync();
 	gui_print("HTC Dumlock is installed.\n");
 }
@@ -585,7 +585,7 @@ int TWFunc::removeDir(const string path, bool skipParent) {
 	string new_path;
 
 	if (d == NULL) {
-		LOGERR("Error opening '%s'\n", path.c_str());
+		LOGERR("Error opening dir: '%s'\n", path.c_str());
 		return -1;
 	}
 
@@ -864,7 +864,7 @@ void TWFunc::Fixup_Time_On_Boot()
 
 	}
 
-	LOGINFO("TWFunc::Fixup_Time: will attempt to use the ats files now.\n", sepoch.c_str());
+	LOGINFO("TWFunc::Fixup_Time: will attempt to use the ats files now.\n");
 
 	// Devices with Qualcomm Snapdragon 800 do some shenanigans with RTC.
 	// They never set it, it just ticks forward from 1970-01-01 00:00,
@@ -1036,6 +1036,18 @@ std::string TWFunc::to_string(unsigned long value) {
 	std::ostringstream os;
 	os << value;
 	return os.str();
+}
+
+void TWFunc::Disable_Stock_Recovery_Replace(void) {
+	if (PartitionManager.Mount_By_Path("/system", false)) {
+		// Disable flashing of stock recovery
+		if (TWFunc::Path_Exists("/system/recovery-from-boot.p")) {
+			rename("/system/recovery-from-boot.p", "/system/recovery-from-boot.bak");
+			gui_print("Renamed stock recovery file in /system to prevent\nthe stock ROM from replacing TWRP.\n");
+			sync();
+		}
+		PartitionManager.UnMount_By_Path("/system", false);
+	}
 }
 
 #endif // ndef BUILD_TWRPTAR_MAIN
